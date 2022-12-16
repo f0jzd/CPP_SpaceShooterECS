@@ -19,13 +19,14 @@ struct SpatialHash
 
 	int index;
 
-	using gridCell = std::vector<SDL_FRect*>;
+	using gridCell = std::vector<EntityPosition*>;
 
 	using spatialHash = std::unordered_map<int, gridCell>;
 
-	void addObject(spatialHash& hash, SDL_FRect* entity);
+	void addObject(spatialHash& hash, EntityPosition* entity);
 
-	void checkCollisions(SDL_Renderer* render,spatialHash& hash, SDL_FRect* object);
+	bool checkCollisions(SDL_Renderer* render,spatialHash& hash, EntityPosition object);
+	bool checkCollisions(SDL_Renderer* render,spatialHash& hash, SDL_FRect* object);
 
 
 	int Hash(int x, int y);

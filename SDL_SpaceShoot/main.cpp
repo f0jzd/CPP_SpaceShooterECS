@@ -17,7 +17,7 @@ and may not be redistributed without written permission.*/
 #include "SpatialHash.h"
 
 
-using gridCell = std::vector<SDL_FRect*>;
+using gridCell = std::vector<EntityPosition*>;
 
 using spatialHash = std::unordered_map<int, gridCell>;
 
@@ -26,49 +26,23 @@ spatialHash hashContainer;
 
 using namespace std;
 
-bool floatcomp(float i, float j)
-{
-	return (i < j);
-}
-
-const Entity MAX_ENTITIES = 1;
+const Entity MAX_ENTITIES = 10;
 
 int activeProjectiles;
 
-std::vector<Entity> allEntittys;
-
-Entity createEntity()
-{
-	Entity entity = allEntittys.size();
-
-	allEntittys.push_back(entity);
-	
-
-	return entity;
-}
-
 Entity gPlayerEntity;
-std::vector<Entity> gEnemyEntities;
-
-//std::vector<Entity> gEntityCopy(MAX_ENTITIES);
-Entity gEntityCopy[MAX_ENTITIES]{}; //For handling collision checking thing
-
+std::vector<Entity> gEnemyEntities(MAX_ENTITIES);
 
 SDL_FRect gPlayerPos;
-std::vector<SDL_FRect> gTransforms(MAX_ENTITIES);
-
-std::vector<ProjectileEntity> gProjectileEntities(MAX_PROJECTILE_ENTITIES);
-std::vector<SDL_FRect> gActiveProjectilePositions(MAX_PROJECTILE_ENTITIES);
-std::vector<AABB> projectileAABBs (MAX_PROJECTILE_ENTITIES);
 
 std::vector<AABB> colliders(MAX_ENTITIES);
-//AABB colliders[MAX_ENTITIES]{};
 
-//x_min check containers
-//std::vector<float> collisions(MAX_ENTITIES);
 float collisions[MAX_ENTITIES]{};
 
-std::map<Entity, SDL_FRect> gEnemyData;
+std::map<Entity, EntityPosition> gEnemyData;
+std::map<Entity, EntityPosition> gProjectileData;
+
+
 
 int main(int argc, char* args[])
 {
@@ -84,23 +58,17 @@ int main(int argc, char* args[])
 
 	SpatialHash gSpatialHash;
 
-	
-	
-	
-	for (size_t i = 0; i < MAX_ENTITIES; i++)
-	{
-		gEnemyEntities.push_back(i);
-	}
-
 
 	for (size_t i = 0; i < MAX_ENTITIES; i++)
 	{
 
 		SDL_FRect pos = { rand() % gEngine.SCREEN_WIDTH,rand() % gEngine.SCREEN_HEIGHT, 50, 50 };
+		
+		EntityPosition s{ pos,true };
 
-		gEnemyData.insert(std::pair<Entity,SDL_FRect>(i, pos));
-	
-		AABB enemyBox = AABB::make_from_position_size(gEnemyData[i].x + gEnemyData[i].w / 2, gEnemyData[i].y + gEnemyData[i].h / 2, gEnemyData[i].w, gEnemyData[i].h);
+		gEnemyData.insert(std::pair<Entity, EntityPosition>(i, s));
+
+		AABB enemyBox = AABB::make_from_position_size(gEnemyData[i].position.x + gEnemyData[i].position.w / 2, gEnemyData[i].position.y + gEnemyData[i].position.h / 2, gEnemyData[i].position.w, gEnemyData[i].position.h);
 
 		colliders[i] = enemyBox;
 
@@ -171,11 +139,8 @@ int main(int argc, char* args[])
 							if (activeProjectiles >= 5)
 								activeProjectiles = 0;
 							//increment active projeectiles corresponding to their index?
-							createProj(gProjectileEntities, gActiveProjectilePositions, &gPlayerPos, activeProjectiles);
+							createProj(gProjectileData, &gPlayerPos, activeProjectiles);
 							activeProjectiles++;
-
-
-
 
 
 						}
@@ -198,15 +163,13 @@ int main(int argc, char* args[])
 					}
 				}
 
-				//gEnemyData[0].x = gPlayerPos.x + 44;
-				//gEnemyData[0].y = gPlayerPos.y;
+				
 
 
 				hashContainer.clear();
 
 				gPlayer.updatePlayer(gInput, &gPlayerPos);
 
-				//gSpatialHash.addObject(hashContainer,&gPlayerPos);
 
 				for (int i = 0; i < gEnemyData.size(); i++)
 				{
@@ -215,53 +178,54 @@ int main(int argc, char* args[])
 
 				gSpatialHash.checkCollisions(gEngine.gRenderer,hashContainer, &gPlayerPos);
 
-
+				
 				//Add a movement handler? maybe?
 
 				SDL_RenderClear(gEngine.gRenderer);
 
-				updateProj(gEngine.gRenderer, gProjectileEntities, gActiveProjectilePositions, activeProjectiles);
+				updateProj(gEngine.gRenderer, gProjectileData, activeProjectiles);
 
 
-				for (size_t i = 0; i < gEnemyData.size(); i++)
+				
+				for (int i = 0; i < gEnemyData.size(); i++)
 				{
-					gEnemyData[i].y -= 0;
+					auto targetDirectionX = gPlayerPos.x - gEnemyData[i].position.x;
+					auto targetDirectionY = gPlayerPos.y - gEnemyData[i].position.y;
+					
+					gEnemyData[i].position.x += targetDirectionX * 0.5 * delta_time;
+					gEnemyData[i].position.y += targetDirectionY * 0.5 * delta_time;
+
 				}
 
-				for (int a = 0; a < gEnemyData.size(); a++) {
+				for (size_t i = 0; i < MAX_PROJECTILE_ENTITIES; i++)
+				{
 
-					AABB enemyBox = AABB::make_from_position_size(gEnemyData[a].x + gEnemyData[a].w / 2, gEnemyData[a].y + gEnemyData[a].h / 2, gEnemyData[a].w, gEnemyData[a].h);
-					SDL_RenderCopyF(gEngine.gRenderer, gEngine.gEnemyTexture, &src, &gEnemyData[a]);
-					AABB::Draw_box(gEngine.gRenderer, enemyBox);
+					if (gSpatialHash.checkCollisions(gEngine.gRenderer, hashContainer, gProjectileData[i]));
+						//do optional collision stuff here
+					
+				}
+
+
+				for (int a = 0; a < gEnemyData.size(); a++) {
+					if (gEnemyData[a].isActive)
+					{
+						AABB enemyBox = AABB::make_from_position_size(gEnemyData[a].position.x + gEnemyData[a].position.w / 2, gEnemyData[a].position.y + gEnemyData[a].position.h / 2, gEnemyData[a].position.w, gEnemyData[a].position.h);
+						SDL_RenderCopyF(gEngine.gRenderer, gEngine.gEnemyTexture, &src, &gEnemyData[a].position);
+						AABB::Draw_box(gEngine.gRenderer, enemyBox);
+					}
 
 				}
 
 				auto playerBox = AABB::make_from_position_size(gPlayerPos.x + gPlayerPos.w / 2, gPlayerPos.y + gPlayerPos.h / 2, gPlayerPos.w, gPlayerPos.h);
 
+
 				
 
-				for (size_t i = 0; i < MAX_PROJECTILE_ENTITIES; i++)
-				{
-					if (gProjectileEntities[i].isActive)
-					{
-						for (size_t b = 0; b < MAX_ENTITIES; b++)
-						{
-							if (aabb_intersect(colliders[b], AABB::make_from_position_size(
-								gActiveProjectilePositions[i].x + gActiveProjectilePositions[i].w / 2,
-								gActiveProjectilePositions[i].y + gActiveProjectilePositions[i].h / 2,
-								gActiveProjectilePositions[i].w,
-								gActiveProjectilePositions[i].h)))
-							{
-								DeactivateProjectile(gProjectileEntities[i], gActiveProjectilePositions[i]);
-								printf("asdf");
-							}							
-						}
-					}
-				}
+				
 		
 				for (size_t i = 0; i < MAX_PROJECTILE_ENTITIES; i++)
 				{
-					SDL_RenderCopyF(gEngine.gRenderer, gEngine.gProjectileTexture, &src, &gActiveProjectilePositions[i]);
+					SDL_RenderCopyF(gEngine.gRenderer, gEngine.gProjectileTexture, &src, &gProjectileData[i].position);
 				}
 
 				SDL_RenderCopyF(gEngine.gRenderer, gEngine.gPepeTexture, &src, &gPlayerPos);
@@ -270,13 +234,6 @@ int main(int argc, char* args[])
 				SDL_SetRenderDrawColor(gEngine.gRenderer, 0, 0, 0, 0);
 
 				SDL_RenderPresent(gEngine.gRenderer);
-
-				/*frame_time = SDL_GetTicks() - start_time;
-
-				fps = (frame_time > 0) ? 1000.0f / frame_time : 0.0f;	
-
-				printf("%f", fps);*/
-
 			}
 		}
 	}

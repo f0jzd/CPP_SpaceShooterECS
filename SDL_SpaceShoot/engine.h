@@ -62,3 +62,10 @@ struct ProjectileEntity
 
 };
 
+struct EntityPosition
+{
+	SDL_FRect position;
+	bool isActive;
+
+};
+
